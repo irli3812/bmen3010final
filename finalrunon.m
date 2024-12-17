@@ -153,7 +153,7 @@ legend(arrayfun(@(c) sprintf('C_L = %.1e', c), CLarray, 'UniformOutput', false),
 title('(D) Ligand depletion (C_L / C_L_0) vs. time for different C_L levels');
 hold off
 
-%% E
+%% E -- wrong graph
 Nrs = double(nrs_eval);
 Nri = double(nri_eval);
 Ncs = 0;
@@ -196,7 +196,7 @@ legend('Location', 'best');
 set(gca, 'XScale', 'log', 'YScale', 'log'); 
 hold off
 
-%% F
+%% F -- analyze to see if this is all needed
 % 1) Pulse
 C_L = 1e-7;
 [t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, [C_L, init_conds(:,2:5)]);
