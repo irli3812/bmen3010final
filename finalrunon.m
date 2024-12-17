@@ -153,7 +153,7 @@ legend(arrayfun(@(c) sprintf('C_L = %.1e', c), CLarray, 'UniformOutput', false),
 title('(D) Ligand depletion (C_L / C_L_0) vs. time for different C_L levels');
 hold off
 
-%% E -- wrong graph
+%% E
 Nrs = double(nrs_eval);
 Nri = double(nri_eval);
 Ncs = 0;
@@ -163,19 +163,19 @@ CL0 = logspace(-10,-5,50);
 timespan3 = [0 240];
 
 Nli_vals = cell(1,3);
-keC_vals = [0.3, 0.03, 0.3];
-keR_vals = [0.03, 0.03, 0.03];
+keC_vals = [0.03, 0.3, 0.03];
+keR_vals = [0.3, 0.3, 0.03];
 
-for i = 1:3
+for i = 1:length(keC_vals)
     k_eC = keC_vals(i);
     k_eR = keR_vals(i);
 
     nli_case = zeros(size(CL0));
 
     for j = 1:length(CL0)
-        init_conds = [CL0(j), nrs_eval, Ncs, nri_eval, Nli];
+        init_conds = [CL0(j), Nrs, Ncs, Nri, Nli];
 
-        [t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, init_conds);
+        [t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,k_eR,k_eC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, init_conds);
 
         nli_case(j) = y(end, 5);
     end
@@ -185,9 +185,9 @@ end
 
 figure();
 hold on
-loglog(CL0, Nli_vals{1}, '-', 'LineWidth', 1.5, 'DisplayName', 'Class 1 (k_e_C = 0.3, k_e_R = 0.03)');
-loglog(CL0, Nli_vals{2}, '-', 'LineWidth', 1.5, 'DisplayName', 'Class 2 low (k_e_C = 0.03, k_e_R = 0.03)');
-loglog(CL0, Nli_vals{3}, '-', 'LineWidth', 1.5, 'DisplayName', 'Class 3 high (k_e_C = 0.003, k_e_R = 0.03)');
+loglog(CL0, Nli_vals{1}, '-', 'LineWidth', 1.5, 'DisplayName', strcat('Class 1 (k_e_C= ', num2str(keC_vals(1)),' k_e_R= ', num2str(keR_vals(1)), ')'));
+loglog(CL0, Nli_vals{2}, '-', 'LineWidth', 1.5, 'DisplayName', strcat('Class 2 low (k_e_C= ', num2str(keC_vals(2)),' k_e_R= ', num2str(keR_vals(2)), ')'));
+loglog(CL0, Nli_vals{3}, '-', 'LineWidth', 1.5, 'DisplayName', strcat('Class 2 high (k_e_C= ', num2str(keC_vals(3)),' k_e_R= ', num2str(keR_vals(3)), ')'));
 grid on;
 xlabel('Initial [C_L] (extracellular ligand conc.) (M)');
 ylabel('Number of SS intracellular ligands (N_L_I)')
@@ -199,7 +199,7 @@ hold off
 %% F -- analyze to see if this is all needed
 % 1) Pulse
 C_L = 1e-7;
-[t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, [C_L, init_conds(:,2:5)]);
+[t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, [C_L, init_conds(1,2:5)]);
 
 Ncs_soln = y(:,3); % solution of surface LR complexes ODE
 Nrs_soln = y(:,2); % solution of surface receptor ODE
