@@ -25,25 +25,27 @@ NC = 1e9;
 NA = 6.023e23;
 
 %% A
-dnrs = -k_as*CL*nrs + k_dis*ncs - keR*nrs + krec*(1-fR)*nri + vs == 0;
-dnri = keR*nrs + keC*ncs - (kdegR*fR + krec*(1-fR))*nri == 0;
-addition = nrs + ncs + nri == nrt;
+dnrs = -k_as*CL*nrs + k_dis*ncs - keR*nrs + krec*(1-fR)*nri + vs == 0; % balance on surface receptor
+dnri = keR*nrs + keC*ncs - (kdegR*fR + krec*(1-fR))*nri == 0; % balance on intracelular receptor
+addition = nrs + ncs + nri == nrt; % equation 11.6.13 of total cell-associated receptor concentration
 
-sol = solve([dnrs, dnri, addition], [vs, nri, nrs]);
+sol = solve([dnrs, dnri, addition], [vs, nri, nrs]); % solves the dnrs and dnri ODE's
 
 % Simplify solutions:
 VS = simplify(sol.vs);
 NRI = simplify(sol.nri);
 NRS = simplify(sol.nrs);
 
+% Substitute parameters into the solved NRs and NRi ODE's
 params = struct('k1', k_as, 'k_1', k_dis, 'keR', keR, 'keC', keC, ...
     'krec', krec, 'kdegR', kdegR, 'fR', fR, 'CL', CL, 'nrt', nrt);
+vs_eval = double(subs(VS, params)); % Vs equation with params
+V_S = double(vs_eval); % rename Vs equation
+nri_eval = double(subs(NRI, params)); % NRi equation with params
+nrs_eval = double(subs(NRS, params)); % NRs equation with params
 
-vs_eval = double(subs(VS, params));
-V_S = double(vs_eval);
-nri_eval = double(subs(NRI, params));
-nrs_eval = double(subs(NRS, params));
-
+% Once parameters are substituted, we obtain SS numerical values of Vs,
+% NRi, and NRs:
 disp('Solved SS form for N_RI, N_RS, VS: ');
 fprintf('V_S = %.4f\n', vs_eval);
 fprintf('N_RI = %.4f\n', nri_eval);
@@ -52,20 +54,22 @@ fprintf('N_RS = %.4f\n', nrs_eval);
 
 %% B
 % y(1) is NRS; y(2) is NRI
+
 system = @(t,y) [
-    -keR*y(1) + krec*(1-fR)*y(2) + V_S;  % 2nd eqn listed
-    keR*y(1) - (kdegR*fR + krec*(1-fR))*y(2) % 4th eqn listed
+    -keR*y(1) + krec*(1-fR)*y(2) + V_S;  % balance on surface receptor
+    keR*y(1) - (kdegR*fR + krec*(1-fR))*y(2) % balance on intracellular receptor
    ];
 
-y0 = [nri_eval; nrs_eval]; % initial conds
+y0 = [nri_eval; nrs_eval]; % initial conditions from part a
 timespan = [0,200];
 
-[t,y] = ode45(system, timespan, y0);
+[t,y] = ode45(system, timespan, y0); % solve the system of equations using the initial conditions
 
-% extract solns:
+% extract solutions:
 nrs_soln = y(:,1);
 nri_soln = y(:,2);
 
+% plot the solutions (dependent variable) vs. time (independent variable):
 figure();
 plot(t,nrs_soln, 'LineWidth', 1.5);
 hold on
@@ -81,28 +85,34 @@ hold off
 
 
 %% C
-timespanCD = [0,250];
-nrs_initial = double(nrs_eval); %double(nrs_eval);
-ncs_initial = 0; %double(ncs);
-nri_initial = double(nri_eval); %double(nri_eval);
-nli_initial = 0; %double(nli);
 
-CLarray = [1e-9,2e-9,5e-9,1e-8,5e-8,1e-7];
+timespanCD = [0,240]; % time to steady state
+
+% initial conditions:
+nrs_initial = double(nrs_eval); % surface receptor level without ligand
+ncs_initial = 0; % no LR complexes at first
+nri_initial = double(nri_eval); % intracellular receptor level without ligand
+nli_initial = 0; % no intracellular ligands at first
+
+CLarray = [1e-9,2e-9,5e-9,1e-8,5e-8,1e-7]; % different ligand concentrations considered
 
 figure();
 
 for i = 1:length(CLarray)
-    CL_initial = CLarray(i);
+    CL_initial = CLarray(i); % iterates through the list of different CL's and puts each value through the solved ODE's
     initialconds = [CL_initial, nrs_initial, ncs_initial, nri_initial, nli_initial];
     
+    % solve each ODE in the system to obtain time-based equations in y
+    % array
     [t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespanCD, initialconds);
-
+    
+    % plot each of these time-based equations:
     subplot(3,2,i);
-    plot(t,y(:,5), 'LineWidth', 1); % N_LI
+    plot(t,y(:,5), 'LineWidth', 1); % C_Li - intracellular ligands
     hold on
-    plot(t,y(:,3), 'LineWidth', 1);
-    plot(t,y(:,2), 'LineWidth', 1);
-    plot(t,y(:,4), 'LineWidth', 1);
+    plot(t,y(:,3), 'LineWidth', 1); % N_Cs - LR complexes
+    plot(t,y(:,2), 'LineWidth', 1); % N_Rs - surface receptors
+    plot(t,y(:,4), 'LineWidth', 1); % NRi - intracellular receptors
     title(['C_L = ', num2str(CL_initial, '%.1e'), ' M']);
     xlabel('time (mins)');
     ylabel('Concentration'); % units
@@ -110,24 +120,7 @@ for i = 1:length(CLarray)
     grid on;
 end
 
-sgtitle('(C) N_L_I and N_C_S vs. Time for Different C_L levels');
-
-%% System of equations for C
-% eqns stands for equations
-function eqns = syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S)
-    C_L = y(1);
-    N_RS = y(2);
-    N_CS = y(3);
-    N_RI = y(4);
-    N_LI = y(5);
-    eqns = zeros(5,1);
-    eqns(1) = (NC/NA)*1e3*(-k_as*y(1)*y(2)+k_dis*y(3)+krec*(1-fL)*y(5));
-    eqns(2) = -k_as*y(1)*y(2) + k_dis*y(3) - keR*y(2) + krec*(1-fR)*y(4) + V_S;
-    eqns(3) = k_as*y(1)*y(2) -(k_dis+keC)*y(3);
-    eqns(4) = keR*y(2) + keC*y(3) - (kdegR*fR + krec*(1-fR))*y(4);
-    eqns(5) = keC*y(3) - (kdegL*fL + krec*(1-fL))*y(5);
-end
-
+sgtitle('(C) N_L_I and N_C_S vs. Time for Different C_L levels'); % overall title
 
 %% D
 % Pre-allocations:
@@ -135,22 +128,23 @@ ratios = zeros(length(CLarray), 250);
 time = cell(length(CLarray), 1);
 
 for i=1:length(CLarray)
-    initialCL = CLarray(i);
+    initialCL = CLarray(i); % same list of CL values used from part C
     initials = [CL_initial, nrs_initial, ncs_initial, nri_initial, nli_initial];
-
+    
+    % solve system of all ODE's (same parameters)
     [t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespanCD, initials);
 
     % CL/CL0 ratio (R)
-    CLtot = y(:,1);
-    R = CLtot/initialCL;
-    ratios(i, 1:length(t)) = R;
-    time{i} = t;
+    CLtot = y(:,1); % material balance on the ligand
+    R = CLtot/initialCL; % ratio of CL/CL0 using the specific CL of the iteration
+    ratios(i, 1:length(t)) = R; % this ratio is stored in the cells indexing from 1 to the end of the t vector (very long)
+    time{i} = t; % the vector of times from this iteration's solving is stored in time cell for plotting later
 end
 
-figure();
+figure(); % plot each ratio of CL/CL0 generated by each different CL0
 hold on
 for i = 1:length(CLarray)
-    plot(time{i}, ratios(i, 1:length(time{i})), 'LineWidth', 1);
+    plot(time{i}, ratios(i, 1:length(time{i})), 'LineWidth', 1); 
 end
 grid on;
 xlabel('time (mins)');
@@ -196,8 +190,70 @@ loglog(CL0, Nli_vals{2}, '-', 'LineWidth', 1.5, 'DisplayName', 'Class 2 low (k_e
 loglog(CL0, Nli_vals{3}, '-', 'LineWidth', 1.5, 'DisplayName', 'Class 3 high (k_e_C = 0.003, k_e_R = 0.03)');
 grid on;
 xlabel('Initial [C_L] (extracellular ligand conc.) (M)');
-ylabel('Number of SS internalized ligands (N_L_I)')
+ylabel('Number of SS intracellular ligands (N_L_I)')
 title('(E) Comparison of N_L_I for different receptor classes');
 legend('Location', 'best');
 set(gca, 'XScale', 'log', 'YScale', 'log'); 
 hold off
+
+%% F
+% 1) Pulse
+C_L = 1e-7;
+[t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, [C_L, init_conds(:,2:5)]);
+
+Ncs_soln = y(:,3); % solution of surface LR complexes ODE
+Nrs_soln = y(:,2); % solution of surface receptor ODE
+
+% display 1st set of results:
+disp(['N_R_s; t = 240 mins: ', num2str(Nrs_soln(end))]);
+disp(['N_C_s; t = 240 mins: ', num2str(Ncs_soln(end))]);
+
+CL_2 = 0; % ligand concentration (M)
+Nrs2 = Nrs_soln;
+Ncs2 = Ncs_soln;
+Nri2 = nri_eval;
+Cli2 = 0;
+
+CLarray2 = [CL_2; Nrs2; Ncs2; Nri2; Cli2];
+[t2,y2] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, [C_L, init_conds(:,2:5)]);
+
+Nli_soln = y2(:,5);
+NCs_soln = y2(:,3);
+
+% display 2nd set of results:
+disp(['N_C_s; t = 240 mins (2nd version): ', num2str(y2(end,3))]);
+disp(['N_L_i; t = 240 mins (2nd version): ', num2str(y2(end,5))]);
+
+Nli_soln = min(max(Nli_soln, 1), 1e5);
+NCs_soln = min(max(Ncs_soln, 1), 1e5);
+
+figure();
+semilogy(t2, Nli_soln, 'r', 'LineWidth', 1, 'DisplayName', 'N_L_i (intracellular ligands)'); % plot NLi
+hold on
+semilogy(t2, NCs_soln, 'b', 'LineWidth', 1, 'DisplayName', 'N_C_s (LR complexes)'); % Plot NCs
+xlabel('time (mins)');
+ylabel('molecules/cell');
+title('(F) N_C_s and N_L_i Semilog Plot for Ligand Pulse');
+legend('show');
+ylim([0 1e5]);
+grid on;
+hold off
+
+
+%% System of equations
+% eqns stands for equations
+
+function eqns = syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S)
+    C_L = y(1); % ligand concentration
+    N_RS = y(2); % surface receptors / cell
+    N_CS = y(3); % LR complexes / cell
+    N_RI = y(4); % intracellular receptors / cell
+    N_LI = y(5); % intracellular ligands / cell
+    eqns = zeros(5,1); % preallocate eqns array
+    % All ODE's:
+    eqns(1) = (NC/NA)*1e3*(-k_as*y(1)*y(2)+k_dis*y(3)+krec*(1-fL)*y(5)); % ligand
+    eqns(2) = -k_as*y(1)*y(2) + k_dis*y(3) - keR*y(2) + krec*(1-fR)*y(4) + V_S; % surface receptor
+    eqns(3) = k_as*y(1)*y(2) -(k_dis+keC)*y(3); % LR complex
+    eqns(4) = keR*y(2) + keC*y(3) - (kdegR*fR + krec*(1-fR))*y(4); % intracellular receptor
+    eqns(5) = keC*y(3) - (kdegL*fL + krec*(1-fL))*y(5); % intracellular ligand
+end
