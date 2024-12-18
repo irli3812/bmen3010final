@@ -1,8 +1,9 @@
 % BMEN3010 Final Project
 % Iris Li
-% BMEN3010
-% Final Project Dec 2024
+% BMEN3010 Final Project Dec 2024
 % Help from ChatGPT
+% Make sure to have signal processing toolbox installed
+
 close all; clc;
 
 %% Variables
@@ -129,10 +130,10 @@ time = cell(length(CLarray), 1);
 
 for i=1:length(CLarray)
     initialCL = CLarray(i); % same list of CL values used from part C
-    initials = [CL_initial, nrs_initial, ncs_initial, nri_initial, nli_initial];
+    intl = [CL_initial, nrs_initial, ncs_initial, nri_initial, nli_initial];
     
     % solve system of all ODE's (same parameters)
-    [t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespanCD, initials);
+    [t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespanCD, intl);
 
     % CL/CL0 ratio (R)
     CLtot = y(:,1); % material balance on the ligand
@@ -149,6 +150,7 @@ end
 grid on;
 xlabel('time (mins)');
 ylabel('C_L / C_L_0');
+ylim([0 1]);
 legend(arrayfun(@(c) sprintf('C_L = %.1e', c), CLarray, 'UniformOutput', false), 'Location', 'best');
 title('(D) Ligand depletion (C_L / C_L_0) vs. time for different C_L levels');
 hold off
@@ -200,44 +202,69 @@ hold off
 % 1) Pulse
 C_L = 1e-7;
 [t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, [C_L, init_conds(1,2:5)]);
-
-Ncs_soln = y(:,3); % solution of surface LR complexes ODE
-Nrs_soln = y(:,2); % solution of surface receptor ODE
-
-% display 1st set of results:
-disp(['N_R_s; t = 240 mins: ', num2str(Nrs_soln(end))]);
-disp(['N_C_s; t = 240 mins: ', num2str(Ncs_soln(end))]);
-
-CL_2 = 0; % ligand concentration (M)
-Nrs2 = Nrs_soln;
-Ncs2 = Ncs_soln;
-Nri2 = nri_eval;
-Cli2 = 0;
-
-CLarray2 = [CL_2; Nrs2; Ncs2; Nri2; Cli2];
-[t2,y2] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, [C_L, init_conds(:,2:5)]);
-
-Nli_soln = y2(:,5);
-NCs_soln = y2(:,3);
-
-% display 2nd set of results:
-disp(['N_C_s; t = 240 mins (2nd version): ', num2str(y2(end,3))]);
-disp(['N_L_i; t = 240 mins (2nd version): ', num2str(y2(end,5))]);
-
-Nli_soln = min(max(Nli_soln, 1), 1e5);
-NCs_soln = min(max(Ncs_soln, 1), 1e5);
-
+CLpulse = y(:,1);
+Nrspulse = y(:,2);
+Ncspulse = y(:,3);
+Nripulse = y(:,4);
+NLipulse = y(:,5);
 figure();
-semilogy(t2, Nli_soln, 'r', 'LineWidth', 1, 'DisplayName', 'N_L_i (intracellular ligands)'); % plot NLi
-hold on
-semilogy(t2, NCs_soln, 'b', 'LineWidth', 1, 'DisplayName', 'N_C_s (LR complexes)'); % Plot NCs
+plot(t,CLpulse,'y','LineWidth',1,'DisplayName','C_L pulse');
+plot(t,Nrspulse, 'r', 'LineWidth', 1, 'DisplayName', 'N_R_s pulse'); hold on
+plot(t,Ncspulse, 'g', 'LineWidth', 1, 'DisplayName', 'N_C_s pulse');
+plot(t,Nripulse, 'b', 'LineWidth', 1, 'DisplayName', 'N_R_i pulse');
+plot(t,NLipulse, 'k', 'LineWidth', 1, 'DisplayName', 'N_L_i pulse');
 xlabel('time (mins)');
-ylabel('molecules/cell');
-title('(F) N_C_s and N_L_i Semilog Plot for Ligand Pulse');
+ylabel('molecules per cell');
+title('(F) Pulse');
 legend('show');
 ylim([0 1e5]);
-grid on;
-hold off
+grid on; hold off
+
+Ncs_end = y(end,3); % end of pulse value of surface LR complexes
+Nrs_end = y(end,2); % end of pulse value of surface receptors
+Nri_end = y(end,4); % end of pulse value of intracellular receptors
+Cli_end = y(end,5); % end of pulse value of intracellular ligands
+
+% Chase:
+intl = [C_L; Nrs_end; Ncs_end; Nri_end; Cli_end];
+[t2,y2] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, intl);
+
+chased = [y;y2];
+CLchase = chased(:,1);
+Nrschase = chased(:,2);
+Ncschase = chased(:,3);
+Nrichase = chased(:,4);
+NLichase = chased(:,5);
+
+t_combo = [t; t(end) + t2];
+% Plot of pulse then chase
+figure();
+plot(t_combo,CLchase,'y','LineWidth',1,'DisplayName','C_L pulse');
+plot(t_combo,Nrschase, 'r', 'LineWidth', 1, 'DisplayName', 'N_R_s pulse chase'); hold on
+plot(t_combo,Ncschase, 'g', 'LineWidth', 1, 'DisplayName', 'N_C_s pulse chase');
+plot(t_combo,Nrichase, 'b', 'LineWidth', 1, 'DisplayName', 'N_R_i pulse chase');
+plot(t_combo,NLichase, 'k', 'LineWidth', 1, 'DisplayName', 'N_L_i pulse chase');
+xlabel('time (mins)');
+ylabel('molecules per cell');
+title('(F) Pulse and Chase');
+legend('show');
+ylim([0 1e5]);
+grid on; hold off
+
+% internalization per time point:
+receptors = Nrichase - Nrschase;
+ligands = NLichase - Ncschase;
+
+figure();
+plot(t_combo, receptors, 'r', 'LineWidth', 1, 'DisplayName', 'Internalized receptors'); hold on
+plot(t_combo, ligands, 'b', 'LineWidth', 1, 'DisplayName', 'Internalized ligands');
+xlabel('time (mins)');
+ylabel('molecules per cell');
+title('(F) Internalization of molecules over time');
+legend('show');
+ylim([0 1e5]);
+grid on; hold off
+
 
 
 %% System of equations
