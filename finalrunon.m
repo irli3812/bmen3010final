@@ -156,16 +156,19 @@ title('(D) Ligand depletion (C_L / C_L_0) vs. time for different C_L levels');
 hold off
 
 %% E
-Nrs = double(nrs_eval);
+% initials:
+Nrs = double(nrs_eval); 
 Nri = double(nri_eval);
 Ncs = 0;
 Nli = 0;
-
 CL0 = logspace(-10,-5,50);
+
 timespan3 = [0 240];
 
-Nli_vals = cell(1,3);
-keC_vals = [0.03, 0.3, 0.03];
+Nli_vals = cell(1,3); %pre-allocation
+
+% Comparison cases:
+keC_vals = [0.03, 0.3, 0.03]; 
 keR_vals = [0.3, 0.3, 0.03];
 
 for i = 1:length(keC_vals)
@@ -185,11 +188,11 @@ for i = 1:length(keC_vals)
     Nli_vals{i} = nli_case;
 end
 
-figure();
+figure(); % Plotting each of the 3 cases^
 hold on
 loglog(CL0, Nli_vals{1}, '-', 'LineWidth', 1.5, 'DisplayName', strcat('Class 1 (k_e_C= ', num2str(keC_vals(1)),' k_e_R= ', num2str(keR_vals(1)), ')'));
-loglog(CL0, Nli_vals{2}, '-', 'LineWidth', 1.5, 'DisplayName', strcat('Class 2 low (k_e_C= ', num2str(keC_vals(2)),' k_e_R= ', num2str(keR_vals(2)), ')'));
-loglog(CL0, Nli_vals{3}, '-', 'LineWidth', 1.5, 'DisplayName', strcat('Class 2 high (k_e_C= ', num2str(keC_vals(3)),' k_e_R= ', num2str(keR_vals(3)), ')'));
+loglog(CL0, Nli_vals{2}, '-', 'LineWidth', 1.5, 'DisplayName', strcat('Class 2 high (k_e_C= ', num2str(keC_vals(2)),' k_e_R= ', num2str(keR_vals(2)), ')'));
+loglog(CL0, Nli_vals{3}, '-', 'LineWidth', 1.5, 'DisplayName', strcat('Class 2 low (k_e_C= ', num2str(keC_vals(3)),' k_e_R= ', num2str(keR_vals(3)), ')'));
 grid on;
 xlabel('Initial [C_L] (extracellular ligand conc.) (M)');
 ylabel('Number of SS intracellular ligands (N_L_I)')
@@ -198,16 +201,20 @@ legend('Location', 'best');
 set(gca, 'XScale', 'log', 'YScale', 'log'); 
 hold off
 
-%% F -- analyze to see if this is all needed
+%% F
 % 1) Pulse
-C_L = 1e-7;
-[t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, [C_L, init_conds(1,2:5)]);
-CLpulse = y(:,1);
+C_L = 1e-7; % chosen initial ligand concentration value (highest listed)
+
+[t,y] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, [C_L, init_conds(1,2:5)]); % solve the system
+
+% extract the respective solution
+CLpulse = y(:,1); 
 Nrspulse = y(:,2);
 Ncspulse = y(:,3);
 Nripulse = y(:,4);
 NLipulse = y(:,5);
-figure();
+
+figure(); % plot each solution
 plot(t,CLpulse,'y','LineWidth',1,'DisplayName','C_L pulse');
 plot(t,Nrspulse, 'r', 'LineWidth', 1, 'DisplayName', 'N_R_s, surface receptors'); hold on
 plot(t,Ncspulse, 'g', 'LineWidth', 1, 'DisplayName', 'N_C_s, surface complexes');
@@ -215,21 +222,23 @@ plot(t,Nripulse, 'b', 'LineWidth', 1, 'DisplayName', 'N_R_i, intracellular recep
 plot(t,NLipulse, 'k', 'LineWidth', 1, 'DisplayName', 'N_L_i, intracellular ligands');
 xlabel('time (mins)');
 ylabel('molecules per cell');
-title('(F) Pulse');
+title(strcat('(F) Pulse only with C_L=', num2str(C_L)));
 legend('show');
 ylim([0 1e5]);
 grid on; hold off
 
+% extract the steady state values as initial conditions
 Ncs_end = y(end,3); % end of pulse value of surface LR complexes
 Nrs_end = y(end,2); % end of pulse value of surface receptors
 Nri_end = y(end,4); % end of pulse value of intracellular receptors
 Cli_end = y(end,5); % end of pulse value of intracellular ligands
 
 % Chase:
-intl = [C_L; Nrs_end; Ncs_end; Nri_end; Cli_end];
+intl = [C_L; Nrs_end; Ncs_end; Nri_end; Cli_end]; % new initial conditions following pulse^
 [t2,y2] = ode45(@(t,y) syseqns(t,y,k_as,k_dis,keR,keC,krec,kdegR,kdegL,fR,fL,NC,NA,V_S), timespan3, intl);
 
-chased = [y;y2];
+chased = [y;y2]; %concatenate pulse and chase data
+% allocate respectively:
 CLchase = chased(:,1);
 Nrschase = chased(:,2);
 Ncschase = chased(:,3);
@@ -241,26 +250,16 @@ t_combo = [t; t(end) + t2];
 figure();
 plot(t_combo,CLchase,'y','LineWidth', 1,'DisplayName','C_L pulse');
 plot(t_combo,Nrschase, 'r', 'LineWidth', 1, 'DisplayName', 'N_R_s, surface receptors'); hold on
-plot(t_combo,Ncschase, 'g', 'LineWidth', 1, 'DisplayName', 'N_C_s, surface complexes');
-plot(t_combo,Nrichase, 'b', 'LineWidth', 1, 'DisplayName', 'N_R_i, intracellular receptors');
-plot(t_combo,NLichase, 'k', 'LineWidth', 1, 'DisplayName', 'N_L_i, intracellular ligands');
+plot(t_combo,Ncschase, 'g', 'LineWidth', 1, 'DisplayName', 'N_C_s, surface complexes/ligands');
+plot(t_combo,Nrichase, 'b', 'LineWidth', 1, 'DisplayName', 'N_R_i, internalized receptors');
+plot(t_combo,NLichase, 'k', 'LineWidth', 1, 'DisplayName', 'N_L_i, internalized ligands');
 xlabel('time (mins)');
 ylabel('molecules per cell');
-title('(F) Pulse and Chase');
+title(strcat('(F) Pulse-Chase with C_L=', num2str(C_L)));
 legend('show');
 ylim([0 1e5]);
 grid on; hold off
 
-% internalization per time point:
-figure();
-plot(t_combo, Nrichase, 'r', 'LineWidth', 1, 'DisplayName', 'Internalized receptors'); hold on
-plot(t_combo, NLichase, 'b', 'LineWidth', 1, 'DisplayName', 'Internalized ligands');
-xlabel('time (mins)');
-ylabel('molecules per cell');
-title('(F) Internalization of molecules over time');
-legend('show');
-ylim([0 1e5]);
-grid on; hold off
 %% System of equations
 % eqns stands for equations
 
